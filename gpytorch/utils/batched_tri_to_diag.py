@@ -1,5 +1,4 @@
 import torch
-import pdb
 
 def trid_qr_wshift(t_mat):
     """
@@ -48,6 +47,7 @@ def trid_qr_wshift(t_mat):
                 mat[k+2,k+1] *= c
                 mat[k+1,k+2] *= c
             eigenvectors[:,k:k+2] = torch.mm(eigenvectors[:,k:k+2], torch.FloatTensor([[c, s], [-s, c]]))
+            print(eigenvectors)
         if abs(mat[m,m-1]) < err*(abs(mat[m-1,m-1]) + abs(mat[m,m])):
             m -= 1
     return torch.diag(mat), eigenvectors
@@ -100,7 +100,7 @@ def batched_tridiag_to_diag(t_mat):
     eigenvalues = torch.zeros(batch_dim1, batch_dim2, m+1)
     eigenvectors = torch.eye(m+1, m+1).repeat(batch_dim1, batch_dim2, 1, 1)
     err = 10**-8 # Check if this error is correct
-
+    i = 0
     while (m > 0):
         d = (mat[:,:,m-1,m-1] - mat[:,:,m,m]) / 2  # Computes Wilkinson's shift
         s_numer = torch.pow(mat[:,:,m,m-1],2)
@@ -134,12 +134,12 @@ def batched_tridiag_to_diag(t_mat):
                 y = torch.mul(-1*s,mat[:,:,k+2,k+1])
                 mat[:,:,k+2,k+1] = torch.mul(mat[:,:,k+2,k+1],c)
                 mat[:,:,k+1,k+2] = torch.mul(mat[:,:,k+1,k+2],c)
-            eigenvectors[:,:,:,k] = torch.matmul(eigenvectors[:,:,:,k].unsqueeze(-1),c.unsqueeze(-1).unsqueeze(-1)) - torch.matmul(eigenvectors[:,:,:,k+1].unsqueeze(-1),s.unsqueeze(-1).unsqueeze(-1))
-            eigenvectors[:,:,:,k+1] = torch.matmul(eigenvectors[:,:,:,k].unsqueeze(-1),s.unsqueeze(-1).unsqueeze(-1)) + torch.matmul(eigenvectors[:,:,:,k+1].unsqueeze(-1),c.unsqueeze(-1).unsqueeze(-1))
+            vecs1 = torch.matmul(eigenvectors[:,:,:,k].unsqueeze(-1),c.unsqueeze(-1).unsqueeze(-1)) - torch.matmul(eigenvectors[:,:,:,k+1].unsqueeze(-1),s.unsqueeze(-1).unsqueeze(-1))
+            vecs2 = torch.matmul(eigenvectors[:,:,:,k].unsqueeze(-1),s.unsqueeze(-1).unsqueeze(-1)) + torch.matmul(eigenvectors[:,:,:,k+1].unsqueeze(-1),c.unsqueeze(-1).unsqueeze(-1))
+            eigenvectors[:,:,:,k] = vecs1
+            eigenvectors[:,:,:,k+1] = vecs2
         if abs(torch.max(mat[:,:,m,m-1])) < err:
-            print(eigenvalues[0,0,:])
-            pdb.set_trace()
             eigenvalues[:,:,m] = mat[:,:,m,m]
-            # print(eigenvalues[:,:,m])
             m -= 1
+        eigenvalues[:,:,0] = mat[:,:,0,0]
     return eigenvalues, eigenvectors
