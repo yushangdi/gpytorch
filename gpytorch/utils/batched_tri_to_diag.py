@@ -97,8 +97,8 @@ def batched_tridiag_to_diag(t_mat):
     batch_dim2 = mat.size(1)
 
     m = mat.size(2) - 1
-    eigenvalues = torch.zeros(1).expand(batch_dim1, batch_dim2, m+1)
-    eigenvectors = torch.eye(m+1).expand(batch_dim1, batch_dim2, m+1, m+1)
+    eigenvalues = torch.zeros(batch_dim1, batch_dim2, m+1)
+    eigenvectors = torch.eye(m+1, m+1).repeat(batch_dim1, batch_dim2, 1, 1)
     err = 10**-8 # Check if this error is correct
 
     while (m > 0):
