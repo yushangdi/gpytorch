@@ -1,7 +1,7 @@
 import torch
 from torch.autograd import Variable
 from ..random_variables import GaussianRandomVariable
-from ..lazy import DiagLazyVariable, InterpolatedLazyVariable, PsdSumLazyVariable
+from ..lazy import DiagLazyVariable, InterpolatedLazyVariable, AddedDiagLazyVariable
 from ..variational import MVNVariationalStrategy
 from ..kernels.kernel import Kernel
 from ..kernels.grid_kernel import GridKernel
@@ -90,7 +90,7 @@ class GridInducingVariationalGP(AbstractVariationalGP):
             prior_covar = InterpolatedLazyVariable(prior_output.covar(), interp_indices, interp_values,
                                                    interp_indices, interp_values)
             diagonal_correction = DiagLazyVariable((self.covar_diag(inputs) - prior_covar.diag()) * 0)
-            test_covar = PsdSumLazyVariable(test_covar, diagonal_correction)
+            test_covar = AddedDiagLazyVariable(test_covar, diagonal_correction)
 
         output = GaussianRandomVariable(test_mean, test_covar)
         return output
