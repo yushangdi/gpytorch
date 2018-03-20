@@ -16,7 +16,7 @@ class MVNVariationalStrategy(VariationalStrategy):
         root_variational_covar = variational_covar.root_decomposition()
 
         mean_diffs = prior_mean - variational_mean
-        inv_quad_rhs = torch.cat([root_variational_covar.transpose(-1, -2), mean_diffs.unsqueeze(-1)], -1)
+        inv_quad_rhs = torch.cat([root_variational_covar, mean_diffs.unsqueeze(-1)], -1)
         log_det_variational_covar = variational_covar.log_det()
         trace_plus_inv_quad_form, log_det_prior_covar = prior_covar.inv_quad_log_det(inv_quad_rhs=inv_quad_rhs,
                                                                                      log_det=True)
