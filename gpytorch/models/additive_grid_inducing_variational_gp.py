@@ -12,9 +12,11 @@ class AdditiveGridInducingVariationalGP(GridInducingVariationalGP):
 
         # Resize variational parameters to have one size per component
         variational_mean = self.variational_mean
-        chol_variational_covar = self.chol_variational_covar
+        root_variational_covar = self.root_variational_covar
+        log_variational_diag = self.log_variational_diag
         variational_mean.data.resize_(*([n_components] + list(variational_mean.size())))
-        chol_variational_covar.data.resize_(*([n_components] + list(chol_variational_covar.size())))
+        root_variational_covar.data.resize_(*([n_components] + list(root_variational_covar.size())))
+        log_variational_diag.data.resize_(*([n_components] + list(log_variational_diag.size())))
 
         # Mixing parameters
         if mixing_params:
@@ -34,16 +36,9 @@ class AdditiveGridInducingVariationalGP(GridInducingVariationalGP):
         return interp_indices, interp_values
 
     def _initalize_variational_parameters(self, prior_output):
-        batch_size = self.chol_variational_covar.size(0)
-        mean_init = prior_output.mean().data
-        mean_init += mean_init.new(mean_init.size()).normal_().mul_(1e-1)
-
-        chol_covar_init = torch.eye(mean_init.size(-1)).type_as(mean_init)
-        chol_covar_init = chol_covar_init.unsqueeze_(0).repeat(batch_size, 1, 1)
-        chol_covar_init += chol_covar_init.new(chol_covar_init.size()).normal_().mul_(1e-1)
-
-        self.variational_mean.data.copy_(mean_init)
-        self.chol_variational_covar.data.copy_(chol_covar_init)
+        self.variational_mean.data.normal_()
+        self.root_variational_covar.data.normal_().div_(self.root_variational_covar.size(-1))
+        self.log_variational_diag.data.fill_(-5)
 
     def covar_diag(self, inputs):
         n_data, n_components, n_dimensions = inputs.size()
