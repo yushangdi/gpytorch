@@ -1,5 +1,10 @@
 language: python
 
+branches:
+  only:
+    - master
+    - travis_fix2
+
 python:
   - "2.7"
   - "3.6"
@@ -7,11 +12,6 @@ addons:
   apt:
     packages:
         libfftw3-dev
-
-branches:
-  only:
-    - master
-    - alpha_release
 
 before_install:
   - sudo apt-get update
