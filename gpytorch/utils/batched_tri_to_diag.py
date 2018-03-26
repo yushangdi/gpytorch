@@ -140,9 +140,9 @@ def batched_tridiag_to_diag(t_mat):
                 mat[:,:,k+2,k+1] = torch.mul(mat[:,:,k+2,k+1],c)
                 mat[:,:,k+1,k+2] = mat[:,:,k+2,k+1]
             bmevk = eigenvectors[:,:,:,k].contiguous().view(b1b2,b3)
-            bmc = c.view(b1b2,1).expand(b1b2,b3)
+            bmc = c.view(b1b2,1)
             bmevk1 = eigenvectors[:,:,:,k+1].contiguous().view(b1b2,b3)
-            bms = s.view(b1b2,1).expand(b1b2,b3)
+            bms = s.view(b1b2,1)
             vecs1 = torch.mul(bmevk,bmc) - torch.mul(bmevk1,bms)
             eigenvectors[:,:,:,k+1] = torch.mul(bmevk,bms) + torch.mul(bmevk1,bmc)
             eigenvectors[:,:,:,k] = vecs1
