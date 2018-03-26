@@ -65,15 +65,15 @@ def lanczos_tridiag_to_diag(t_mat):
 
     if t_mat.dim() == 3:
         t_mat = t_mat.unsqueeze(0)
-    batch_dim1 = t_mat.size(0)
-    batch_dim2 = t_mat.size(1)
+    b1 = t_mat.size(0)
+    b2 = t_mat.size(1)
     n = t_mat.size(2)
 
     eigenvectors = t_mat.new(*t_mat.shape)
-    eigenvalues = t_mat.new(batch_dim1, batch_dim2, n)
+    eigenvalues = t_mat.new(b1, b2, n)
 
-    for i in range(batch_dim1):
-        for j in range(batch_dim2):
+    for i in range(b1):
+        for j in range(b2):
             evals, evecs = t_mat[i, j].symeig(eigenvectors=True)
             eigenvectors[i, j] = evecs
             eigenvalues[i, j] = evals
@@ -88,44 +88,49 @@ def batched_tridiag_to_diag(t_mat):
     Computes symmetric tridiagonal QR algorithm with implicit Wilkinson shift
     as described in http://people.inf.ethz.ch/arbenz/ewp/Lnotes/chapter4.pdf.
     """
-    mat = t_mat.clone() # changed from cpu to clone, as cpu modifies orig t_mat
+    mat = t_mat.cpu() # changed from cpu to clone, as cpu modifies orig t_mat
                         # can just l + r mm diag eigenvals by eigenvecs but idk which is better
 
     if mat.dim() == 3:
         mat = mat.unsqueeze(0)
-    batch_dim1 = mat.size(0)
-    batch_dim2 = mat.size(1)
+    b1 = mat.size(0)
+    b2 = mat.size(1)
+    b3 = mat.size(2)
+    b1b2 = b1*b2
 
-    m = mat.size(2) - 1
-    eigenvalues = torch.zeros(batch_dim1, batch_dim2, m+1)
-    eigenvectors = torch.eye(m+1, m+1).repeat(batch_dim1, batch_dim2, 1, 1)
+    m = b3 - 1
+    eigenvalues = torch.zeros(b1, b2, m+1)
+    eigenvectors = torch.eye(m+1, m+1).repeat(b1, b2, 1, 1)
     err = 10**-8 # Check if this error is correct
-    i = 0
+
     while (m > 0):
-        d = (mat[:,:,m-1,m-1] - mat[:,:,m,m]) / 2  # Computes Wilkinson's shift
-        s_numer = torch.pow(mat[:,:,m,m-1],2)
-        s_denom = d + torch.mul(torch.sign(d),torch.sqrt(torch.pow(d,2) + torch.pow(mat[:,:,m,m-1],2)))
-        s = mat[:,:,m,m] - torch.div(s_numer,s_denom)
+        am = mat[:,:,m,m]
+        amm1 = mat[:,:,m-1,m-1]
+        bm = mat[:,:,m,m-1]
+        d = (amm1 - am) / 2  # Computes Wilkinson's shift
+        s_numer = torch.pow(bm,2)
+        s_denom = d + torch.mul(torch.sign(d),torch.sqrt(torch.pow(d,2) + torch.pow(bm,2)))
+        s = am - torch.div(s_numer,s_denom)
         x = mat[:,:,0,0] - s # Implicit QR
         y = mat[:,:,1,0]
         for k in range(0,m):
-            c = torch.ones(batch_dim1*batch_dim2,1)
-            s = torch.zeros_like(c)
-            y_nz_ind = y.contiguous().view(batch_dim1*batch_dim2).nonzero()
+            c = torch.ones(b1b2,1)
+            s = torch.zeros(b1b2,1)
+            y_nz_ind = y.contiguous().view(b1b2).nonzero()
             if not torch.equal(y_nz_ind, torch.LongTensor([])):
                 y_nz = y.take(y_nz_ind)
                 x_nz = x.take(y_nz_ind)
                 c.scatter_(0, y_nz_ind, torch.mul(x_nz, torch.rsqrt(torch.pow(x_nz,2) + torch.pow(y_nz,2))))
                 s.scatter_(0, y_nz_ind, torch.mul(-1*y_nz, torch.rsqrt(torch.pow(x_nz,2) + torch.pow(y_nz,2))))
-            c.resize_(batch_dim1,batch_dim2)
-            s.resize_(batch_dim1,batch_dim2)
+            c.resize_(b1,b2)
+            s.resize_(b1,b2)
             w = torch.mul(c,x) - torch.mul(s,y)
             d = mat[:,:,k,k] - mat[:,:,k+1,k+1]
             z = torch.mul(torch.mul(2*c,mat[:,:,k+1,k]) + torch.mul(d,s),s)
             mat[:,:,k,k] -= z
             mat[:,:,k+1,k+1] += z
             mat[:,:,k+1,k] = torch.mul(torch.mul(d,c),s) + torch.mul((torch.pow(c,2) - torch.pow(s,2)),mat[:,:,k+1,k])
-            mat[:,:,k,k+1] = torch.mul(torch.mul(d,c),s) + torch.mul((torch.pow(c,2) - torch.pow(s,2)),mat[:,:,k,k+1])
+            mat[:,:,k,k+1] = mat[:,:,k+1,k]
             x = mat[:,:,k+1,k]
             if k > 0:
                 mat[:,:,k,k-1] = w
@@ -133,11 +138,14 @@ def batched_tridiag_to_diag(t_mat):
             if k < m - 1:
                 y = torch.mul(-1*s,mat[:,:,k+2,k+1])
                 mat[:,:,k+2,k+1] = torch.mul(mat[:,:,k+2,k+1],c)
-                mat[:,:,k+1,k+2] = torch.mul(mat[:,:,k+1,k+2],c)
-            vecs1 = torch.matmul(eigenvectors[:,:,:,k].unsqueeze(-1),c.unsqueeze(-1).unsqueeze(-1)) - torch.matmul(eigenvectors[:,:,:,k+1].unsqueeze(-1),s.unsqueeze(-1).unsqueeze(-1))
-            vecs2 = torch.matmul(eigenvectors[:,:,:,k].unsqueeze(-1),s.unsqueeze(-1).unsqueeze(-1)) + torch.matmul(eigenvectors[:,:,:,k+1].unsqueeze(-1),c.unsqueeze(-1).unsqueeze(-1))
+                mat[:,:,k+1,k+2] = mat[:,:,k+2,k+1]
+            bmevk = eigenvectors[:,:,:,k].contiguous().view(b1b2,b3)
+            bmc = c.view(b1b2,1).expand(b1b2,b3)
+            bmevk1 = eigenvectors[:,:,:,k+1].contiguous().view(b1b2,b3)
+            bms = s.view(b1b2,1).expand(b1b2,b3)
+            vecs1 = torch.mul(bmevk,bmc) - torch.mul(bmevk,bms)
+            eigenvectors[:,:,:,k+1] = torch.mul(bmevk,bms) + torch.mul(bmevk1,bmc)
             eigenvectors[:,:,:,k] = vecs1
-            eigenvectors[:,:,:,k+1] = vecs2
         if abs(torch.max(mat[:,:,m,m-1])) < err:
             eigenvalues[:,:,m] = mat[:,:,m,m]
             m -= 1
