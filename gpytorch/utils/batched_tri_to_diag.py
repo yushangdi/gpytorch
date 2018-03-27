@@ -80,7 +80,7 @@ def lanczos_tridiag_to_diag(t_mat):
 
     return eigenvalues.type_as(t_mat_orig), eigenvectors.type_as(t_mat_orig)
 
-def batched_tridiag_to_diag(t_mat):
+def batched_tridiag_to_diag2(t_mat):
     """
     Given a num_init_vecs by num_batch by k by k tridiagonal matrix t_mat,
     returns a num_init_vecs by num_batch by k set of eigenvalues
@@ -113,9 +113,11 @@ def batched_tridiag_to_diag(t_mat):
         s = am - torch.div(s_numer,s_denom)
         x = mat[:,:,0,0] - s # Implicit QR
         y = mat[:,:,1,0]
+        c = torch.ones(b1b2,1) # TODO: allocate outside for loop, update in-place
+        s = torch.zeros(b1b2,1) # TODO: allocate outside for loop, update in-place
         for k in range(0,m):
-            c = torch.ones(b1b2,1)
-            s = torch.zeros(b1b2,1)
+            c.fill_(1)
+            s.fill_(0)
             y_nz_ind = y.contiguous().view(b1b2).nonzero()
             if not torch.equal(y_nz_ind, torch.LongTensor([])):
                 y_nz = y.take(y_nz_ind)
@@ -140,14 +142,79 @@ def batched_tridiag_to_diag(t_mat):
                 mat[:,:,k+2,k+1] = torch.mul(mat[:,:,k+2,k+1],c)
                 mat[:,:,k+1,k+2] = mat[:,:,k+2,k+1]
             bmevk = eigenvectors[:,:,:,k].contiguous().view(b1b2,b3)
-            bmc = c.view(b1b2,1)
+            c.resize_(b1b2,1)
             bmevk1 = eigenvectors[:,:,:,k+1].contiguous().view(b1b2,b3)
-            bms = s.view(b1b2,1)
-            vecs1 = torch.mul(bmevk,bmc) - torch.mul(bmevk1,bms)
-            eigenvectors[:,:,:,k+1] = torch.mul(bmevk,bms) + torch.mul(bmevk1,bmc)
+            s.resize_(b1b2,1)
+            vecs1 = torch.mul(bmevk,c) - torch.mul(bmevk1,s)
+            eigenvectors[:,:,:,k+1] = torch.mul(bmevk,s) + torch.mul(bmevk1,c)
             eigenvectors[:,:,:,k] = vecs1
         if abs(torch.max(mat[:,:,m,m-1])) < err:
             eigenvalues[:,:,m] = mat[:,:,m,m]
             m -= 1
         eigenvalues[:,:,0] = mat[:,:,0,0]
+    return eigenvalues, eigenvectors
+
+def batched_tridiag_to_diag(alpha, beta):
+    """
+    Given a num_init_vecs*num_batch by k batched vector/matrix alpha
+    and a num_init_vecs*num_batch by k-1 batched vector/matrix beta,
+    returns a num_init_vecs*num_batch by k set of eigenvalues
+    and a num_init_vecs*num_batch by k by k set of eigenvectors.
+    Computes symmetric tridiagonal QR algorithm with implicit Wilkinson shift
+    as described in http://people.inf.ethz.ch/arbenz/ewp/Lnotes/chapter4.pdf.
+    """
+    a = alpha.cpu()
+    b = beta.cpu()
+
+    n1n2 = a.size(0)
+    n3 = a.size(1)
+
+    m = n3 - 1
+    eigenvalues = torch.zeros(n1n2,n3)
+    eigenvectors = torch.eye(n3,n3).repeat(n1n2,1,1)
+    err = 10**-8 # Check if this error is correct
+
+    c = torch.ones(n1n2,1)
+    s = torch.zeros(n1n2,1)
+    while (m > 0):
+        am = a[:,m]
+        amm1 = a[:,m-1]
+        bm = b[:,m-1]
+        d = (amm1 - am) / 2  # Computes Wilkinson's shift
+        s_numer = torch.pow(bm,2)
+        s_denom = d + torch.mul(torch.sign(d),torch.sqrt(torch.pow(d,2) + torch.pow(bm,2)))
+        s = am - torch.div(s_numer,s_denom)
+        x = a[:,0] - s # Implicit QR
+        y = b[:,0]
+        for k in range(0,m):
+            c.squeeze_().fill_(1)
+            s.squeeze_().fill_(0)
+            y_nz_ind = y.nonzero().squeeze()
+            if not torch.equal(y_nz_ind, torch.LongTensor([])):
+                y_nz = y.take(y_nz_ind)
+                x_nz = x.take(y_nz_ind)
+                x2y2 = (torch.pow(x_nz,2) + torch.pow(y_nz,2)).rsqrt_()
+                c.scatter_(0,y_nz_ind,torch.mul(x_nz, x2y2))
+                s.scatter_(0,y_nz_ind,torch.mul(-y_nz, x2y2))
+            w = torch.mul(c,x) - torch.mul(s,y)
+            d = a[:,k] - a[:,k+1]
+            z = torch.mul(torch.mul(2*c,b[:,k]) + torch.mul(d,s),s)
+            a[:,k] -= z
+            a[:,k+1] += z
+            b[:,k] = torch.mul(torch.mul(d,c),s) + torch.mul(torch.pow(c,2) - torch.pow(s,2),b[:,k])
+            x = b[:,k]
+            if k > 0:
+                b[:,k-1] = w
+            if k < m - 1:
+                y = torch.mul(-s,b[:,k+1])
+                b[:,k+1] = torch.mul(b[:,k+1],c)
+            c.unsqueeze_(-1)
+            s.unsqueeze_(-1)
+            vecs1 = torch.mul(eigenvectors[:,:,k],c) - torch.mul(eigenvectors[:,:,k+1],s)
+            eigenvectors[:,:,k+1] = torch.mul(eigenvectors[:,:,k],s) + torch.mul(eigenvectors[:,:,k+1],c)
+            eigenvectors[:,:,k] = vecs1
+        if abs(torch.max(b[:,m-1])) < err:
+            eigenvalues[:,m] = a[:,m]
+            m -= 1
+        eigenvalues[:,0] = a[:,0]
     return eigenvalues, eigenvectors
