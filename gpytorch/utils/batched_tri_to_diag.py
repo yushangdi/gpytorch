@@ -211,10 +211,9 @@ def batched_tridiag_to_diag(alpha, beta):
                 b[:,k+1] = torch.mul(b[:,k+1],c)
             c.unsqueeze_(-1)
             s.unsqueeze_(-1)
-            evk = eigenvectors[:,:,k]
-            evk1 = eigenvectors[:,:,k+1]
-            eigenvectors[:,:,k] = torch.mul(evk,c) - torch.mul(evk1,s)
-            eigenvectors[:,:,k+1] = torch.mul(evk,s) + torch.mul(evk1,c)
+            vecs1 = torch.mul(eigenvectors[:,:,k],c) - torch.mul(eigenvectors[:,:,k+1],s)
+            eigenvectors[:,:,k+1] = torch.mul(eigenvectors[:,:,k],s) + torch.mul(eigenvectors[:,:,k+1],c)
+            eigenvectors[:,:,k] = vecs1
         if abs(torch.max(b[:,m-1])) < err:
             eigenvalues[:,m] = a[:,m]
             m -= 1
