@@ -1,6 +1,6 @@
 import torch
 import unittest
-from gpytorch.utils.batched_tri_to_diag import *
+from gpytorch.gpytorch.utils import batched_tri_to_diag
 
 class TestBatched(unittest.TestCase):
     def test_vectorized_eigenvalues(self):

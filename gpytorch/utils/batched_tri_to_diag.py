@@ -176,11 +176,12 @@ def batched_tridiag_to_diag(alpha, beta):
 
     c = torch.ones(n1n2,1)
     s = torch.zeros(n1n2,1)
+    d = torch.zeros(n1n2,1)
     while (m > 0):
         am = a[:,m]
-        amm1 = a[:,m-1]
+        am1 = a[:,m-1]
         bm = b[:,m-1]
-        d = (amm1 - am) / 2  # Computes Wilkinson's shift
+        d = am1/2 - am/2  # Computes Wilkinson's shift
         s_numer = torch.pow(bm,2)
         s_denom = d + torch.mul(torch.sign(d),torch.sqrt(torch.pow(d,2) + torch.pow(bm,2)))
         s = am - torch.div(s_numer,s_denom)
@@ -210,9 +211,10 @@ def batched_tridiag_to_diag(alpha, beta):
                 b[:,k+1] = torch.mul(b[:,k+1],c)
             c.unsqueeze_(-1)
             s.unsqueeze_(-1)
-            vecs1 = torch.mul(eigenvectors[:,:,k],c) - torch.mul(eigenvectors[:,:,k+1],s)
-            eigenvectors[:,:,k+1] = torch.mul(eigenvectors[:,:,k],s) + torch.mul(eigenvectors[:,:,k+1],c)
-            eigenvectors[:,:,k] = vecs1
+            evk = eigenvectors[:,:,k]
+            evk1 = eigenvectors[:,:,k+1]
+            eigenvectors[:,:,k] = torch.mul(evk,c) - torch.mul(evk1,s)
+            eigenvectors[:,:,k+1] = torch.mul(evk,s) + torch.mul(evk1,c)
         if abs(torch.max(b[:,m-1])) < err:
             eigenvalues[:,m] = a[:,m]
             m -= 1
