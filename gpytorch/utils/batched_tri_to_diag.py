@@ -1,5 +1,6 @@
 import torch
 
+
 def trid_qr_wshift(t_mat):
     """
     Computes symmetric tridiagonal QR algorithm with implicit Wilkinson shift
@@ -201,7 +202,9 @@ def batched_tridiag_to_diag(a, b):
             z = torch.mul(torch.mul(2*c,b[:,k]) + torch.mul(d,s),s)
             a[:,k] -= z
             a[:,k+1] += z
-            b[:,k] = torch.mul(torch.mul(d,c),s) + torch.mul(torch.pow(c,2) - torch.pow(s,2),b[:,k])
+            # Try something like this for the more complicated math lines
+            # (Pdb) print(b[:,k].addcmul_(d * c * s, 1, torch.pow(c,2) - torch.pow(s,2)))
+            b[:,k] = torch.mul(torch.mul(d,c),s) + torch.mul(torch.pow(c,2) - torch.pow(s,2), b[:,k])
             x = b[:,k]
             if k > 0:
                 b[:,k-1] = w
