@@ -182,42 +182,40 @@ def batched_tridiag_to_diag(a, b):
         am1 = a[:, m - 1]
         bm = b[:, m - 1]
         d = am1 / 2 - am / 2  # Computes Wilkinson's shift
-        s_numer = torch.pow(bm,2)
-        s_denom = d + torch.mul(torch.sign(d),torch.sqrt(torch.pow(d,2) + torch.pow(bm,2)))
-        s = am - torch.div(s_numer,s_denom)
+        s_numer = torch.pow(bm, 2)
+        s_denom = torch.addcmul(d, 1, torch.sign(d), torch.sqrt(torch.pow(d, 2) + torch.pow(bm, 2)))
+        s = torch.addcdiv(am, -1, s_numer, s_denom)
         x = a[:,0] - s # Implicit QR
         y = b[:,0]
         for k in range(0,m):
             c.squeeze_().fill_(1)
             s.squeeze_().fill_(0)
-            y_nz_ind = y.nonzero().squeeze()
-            if len(y_nz_ind) > 0:
-                y_nz = y.take(y_nz_ind)
-                x_nz = x.take(y_nz_ind)
+            y_nz_mask = y.ne(0)
+            if torch.max(y.ne(0)) > 0:
+                y_nz = torch.masked_select(y, y.ne(0))
+                x_nz = torch.masked_select(x, y.ne(0))
                 x2y2 = (torch.pow(x_nz, 2) + torch.pow(y_nz, 2)).rsqrt_()
-                c.scatter_(0, y_nz_ind, torch.mul(x_nz, x2y2))
-                s.scatter_(0, y_nz_ind, torch.mul(-y_nz, x2y2))
-            w = torch.mul(c,x) - torch.mul(s,y)
-            d = a[:,k] - a[:,k+1]
-            z = torch.mul(torch.mul(2*c,b[:,k]) + torch.mul(d,s),s)
-            a[:,k] -= z
-            a[:,k+1] += z
-            # Try something like this for the more complicated math lines
-            # (Pdb) print(b[:,k].addcmul_(d * c * s, 1, torch.pow(c,2) - torch.pow(s,2)))
-            b[:,k] = torch.mul(torch.mul(d,c),s) + torch.mul(torch.pow(c,2) - torch.pow(s,2), b[:,k])
-            x = b[:,k]
+                c.masked_scatter_(y.ne(0), torch.mul(x_nz, x2y2))
+                s.masked_scatter_(y.ne(0), torch.mul(-y_nz, x2y2))
+            w = torch.addcmul(c * x, -1, s, y)
+            d = a[:, k] - a[:, k+1]
+            z = torch.mul(torch.addcmul(torch.mul(d, s), 2, c, b[:, k]), s)
+            a[:, k] -= z
+            a[:, k+1] += z
+            (b[:,k].mul_(torch.pow(c, 2) - torch.pow(s, 2))).addcmul_(d, torch.mul(c, s))
+            x = b[:, k]
             if k > 0:
-                b[:,k-1] = w
+                b[:, k-1] = w
             if k < m - 1:
-                y = torch.mul(-s,b[:,k+1])
-                b[:,k+1] = torch.mul(b[:,k+1],c)
+                y = torch.mul(-s, b[:, k+1])
+                b[:, k+1].mul_(c)
             c.unsqueeze_(-1)
             s.unsqueeze_(-1)
-            vecs1 = torch.mul(eigenvectors[:,:,k],c) - torch.mul(eigenvectors[:,:,k+1],s)
-            eigenvectors[:,:,k+1] = torch.mul(eigenvectors[:,:,k],s) + torch.mul(eigenvectors[:,:,k+1],c)
-            eigenvectors[:,:,k] = vecs1
-        if abs(torch.max(b[:,m-1])) < err:
+            vecs1 = torch.mul(eigenvectors[:, :, k], c) - torch.mul(eigenvectors[:, :, k+1], s)
+            (eigenvectors[:, :, k + 1].mul_(c)).addcmul_(eigenvectors[:, :, k], s)
+            eigenvectors[:, :, k] = vecs1
+        if abs(torch.max(b[:, m - 1])) < err:
             eigenvalues[:, m] = a[:, m]
             m -= 1
-        eigenvalues[:,0] = a[:,0]
+        eigenvalues[:, 0] = a[:, 0]
     return eigenvalues, eigenvectors
