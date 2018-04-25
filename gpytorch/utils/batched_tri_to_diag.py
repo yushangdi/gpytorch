@@ -155,7 +155,6 @@ def batched_tridiag_to_diag2(t_mat):
         eigenvalues[:,:,0] = mat[:,:,0,0]
     return eigenvalues, eigenvectors
 
-
 def batched_tridiag_to_diag(a, b):
     """
     Given a num_init_vecs*num_batch by k batched vector/matrix alpha
@@ -188,15 +187,10 @@ def batched_tridiag_to_diag(a, b):
         x = a[:,0] - s # Implicit QR
         y = b[:,0]
         for k in range(0,m):
-            c.squeeze_().fill_(1)
-            s.squeeze_().fill_(0)
-            y_nz_mask = y.ne(0)
-            if torch.max(y.ne(0)) > 0:
-                y_nz = torch.masked_select(y, y.ne(0))
-                x_nz = torch.masked_select(x, y.ne(0))
-                x2y2 = (torch.pow(x_nz, 2) + torch.pow(y_nz, 2)).rsqrt_()
-                c.masked_scatter_(y.ne(0), torch.mul(x_nz, x2y2))
-                s.masked_scatter_(y.ne(0), torch.mul(-y_nz, x2y2))
+            c = (torch.pow(x, 2) + torch.pow(y, 2)).rsqrt_()
+            s = c.clone()
+            c.mul_(x)
+            s.mul_(-y)
             w = torch.addcmul(c * x, -1, s, y)
             d = a[:, k] - a[:, k+1]
             z = torch.mul(torch.addcmul(torch.mul(d, s), 2, c, b[:, k]), s)
