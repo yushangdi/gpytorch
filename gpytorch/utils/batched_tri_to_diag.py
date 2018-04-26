@@ -173,39 +173,39 @@ def batched_tridiag_to_diag(a, b):
     eigenvectors = a.new(n3).fill_(1).diag().repeat(n1n2, 1, 1)
     err = 10 ** -8
 
-    c = a.new(n1n2, 1).fill_(1)
-    s = a.new(n1n2, 1).fill_(0)
-    d = a.new(n1n2, 1).fill_(0)
+    c = a.new(n1n2, 1)
+    s = c.clone()
+    d = c.clone()
     while (m > 0):
         am = a[:, m]
         am1 = a[:, m - 1]
         bm = b[:, m - 1]
         d = am1 / 2 - am / 2  # Computes Wilkinson's shift
         s_numer = torch.pow(bm, 2)
-        s_denom = torch.addcmul(d, 1, torch.sign(d), torch.sqrt(torch.pow(d, 2) + torch.pow(bm, 2)))
+        s_denom = torch.addcmul(d, 1, torch.sign(d), torch.sqrt(torch.pow(d, 2).add_(torch.pow(bm, 2))))
         s = torch.addcdiv(am, -1, s_numer, s_denom)
-        x = a[:,0] - s # Implicit QR
-        y = b[:,0]
+        x = a[:, 0] - s # Implicit QR
+        y = b[:, 0]
         for k in range(0,m):
-            c = (torch.pow(x, 2) + torch.pow(y, 2)).rsqrt_()
+            c = (torch.pow(x, 2).add_(torch.pow(y, 2))).rsqrt_()
             s = c.clone()
             c.mul_(x)
             s.mul_(-y)
             w = torch.addcmul(c * x, -1, s, y)
-            d = a[:, k] - a[:, k+1]
-            z = torch.mul(torch.addcmul(torch.mul(d, s), 2, c, b[:, k]), s)
+            d = a[:, k] - a[:, k + 1]
+            z = ((torch.mul(d, s)).addcmul_(2, c, b[:, k])).mul_(s)
             a[:, k] -= z
-            a[:, k+1] += z
-            (b[:,k].mul_(torch.pow(c, 2) - torch.pow(s, 2))).addcmul_(d, torch.mul(c, s))
+            a[:, k + 1] += z
+            (b[:, k].mul_(torch.pow(c, 2).sub_(torch.pow(s, 2)))).addcmul_(d, torch.mul(c, s))
             x = b[:, k]
             if k > 0:
-                b[:, k-1] = w
+                b[:, k - 1] = w
             if k < m - 1:
-                y = torch.mul(-s, b[:, k+1])
-                b[:, k+1].mul_(c)
+                y = torch.mul(-s, b[:, k + 1])
+                b[:, k + 1].mul_(c)
             c.unsqueeze_(-1)
             s.unsqueeze_(-1)
-            vecs1 = torch.mul(eigenvectors[:, :, k], c) - torch.mul(eigenvectors[:, :, k+1], s)
+            vecs1 = torch.mul(eigenvectors[:, :, k], c) - torch.mul(eigenvectors[:, :, k + 1], s)
             (eigenvectors[:, :, k + 1].mul_(c)).addcmul_(eigenvectors[:, :, k], s)
             eigenvectors[:, :, k] = vecs1
         if abs(torch.max(b[:, m - 1])) < err:
