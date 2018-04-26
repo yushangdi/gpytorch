@@ -20,8 +20,8 @@ class TestBatched(unittest.TestCase):
             for j in range(b2):
                 beta[i, j] = t_mat[i, j, :, :].diag(-1)
         beta.resize_(b1 * b2, b3 - 1)
-        val, vec = batched_tridiag_to_diag(alpha, beta)
-        sym_val, sym_vec = lanczos_tridiag_to_diag(sym_mat)
+        val, vec = batched_tridiag_to_diag(alpha.clone(), beta.clone())
+        sym_val, sym_vec = lanczos_tridiag_to_diag(sym_mat.clone())
 
         val.resize_(b1, b2, b3)
         res = torch.norm(torch.sort(sym_val)[0] - torch.sort(val)[0])
@@ -43,8 +43,8 @@ class TestBatched(unittest.TestCase):
             for j in range(b2):
                 beta[i, j] = t_mat[i, j, :, :].diag(-1)
         beta.resize_(b1 * b2, b3 - 1)
-        val, vec = batched_tridiag_to_diag(alpha, beta)
-        sym_val, sym_vec = lanczos_tridiag_to_diag(sym_mat)
+        val, vec = batched_tridiag_to_diag(alpha.clone(), beta.clone())
+        sym_val, sym_vec = lanczos_tridiag_to_diag(sym_mat.clone())
 
         vec.resize_(b1, b2, b3, b3)
         res = torch.norm(torch.sort(torch.abs(sym_vec), -1)[0] - torch.sort(torch.abs(vec), -1)[0])
