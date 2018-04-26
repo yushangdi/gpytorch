@@ -170,7 +170,7 @@ def batched_tridiag_to_diag(a, b):
     eigenvalues = torch.zeros(n1n2, n3)
     eigenvalues = a.new(n1n2, n3).fill_(0)
     eigenvectors = a.new(n3).fill_(1).diag().repeat(n1n2, 1, 1)
-    err = 10 ** -8
+    err = 10 ** -6
 
     c = a.new(n1n2, 1)
     s = c.clone()
@@ -194,7 +194,7 @@ def batched_tridiag_to_diag(a, b):
             z = ((torch.mul(d, s)).addcmul_(2, c, b[:, k])).mul_(s)
             a[:, k] -= z
             a[:, k + 1] += z
-            (b[:, k].mul_(torch.pow(c, 2).sub_(torch.pow(s, 2)))).addcmul_(d, torch.mul(c, s))
+            (b[:, k].mul_(torch.pow(c, 2).sub_(torch.pow(s, 2)))).add_(d.mul_(torch.mul(c, s)))
             x = b[:, k]
             if k > 0:
                 b[:, k - 1] = w
@@ -206,7 +206,7 @@ def batched_tridiag_to_diag(a, b):
             vecs1 = torch.mul(eigenvectors[:, :, k], c) - torch.mul(eigenvectors[:, :, k + 1], s)
             (eigenvectors[:, :, k + 1].mul_(c)).addcmul_(eigenvectors[:, :, k], s)
             eigenvectors[:, :, k] = vecs1
-        if torch.max(torch.abs(b[:, m - 1])) < err:
+        if torch.norm(b[:, k]) < err:
             eigenvalues[:, m] = a[:, m]
             m -= 1
         eigenvalues[:, 0] = a[:, 0]
