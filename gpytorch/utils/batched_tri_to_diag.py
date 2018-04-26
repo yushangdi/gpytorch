@@ -189,7 +189,7 @@ def batched_tridiag_to_diag(a, b):
             s = c.clone()
             c.mul_(x)
             s.mul_(-y)
-            w = torch.addcmul(c * x, -1, s, y)
+            w = (c * x).sub_(torch.mul(s, y))
             d = a[:, k] - a[:, k + 1]
             z = ((torch.mul(d, s)).addcmul_(2, c, b[:, k])).mul_(s)
             a[:, k] -= z
