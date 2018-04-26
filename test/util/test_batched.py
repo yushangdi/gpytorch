@@ -48,7 +48,7 @@ class TestBatched(unittest.TestCase):
 
         vec.resize_(b1, b2, b3, b3)
         res = torch.norm(torch.sort(torch.abs(sym_vec), -1)[0] - torch.sort(torch.abs(vec), -1)[0])
-        self.assertLess(res, 1e-2)
+        self.assertLess(res, 1e-3)
 
 if __name__ == '__main__':
     unittest.main()
