@@ -176,20 +176,19 @@ def batched_tridiag_to_diag(a, b):
     s = c.clone()
     d = c.clone()
     while (m > 0):
-        am = a[:, m]
-        am1 = a[:, m - 1]
+        s = a[:, m].clone()
+        am1 = a[:, m - 1].clone()
         bm = b[:, m - 1].clone().pow_(2)
-        d = am1 / 2 - am / 2  # Computes Wilkinson's shift
-        s = am.clone()
+        d = am1.sub_(s) / 2  # Computes Wilkinson's shift
         s.sub_(bm.div_(torch.sign(d.add_(1e-30)).mul_((torch.pow(d, 2).add_(bm)).sqrt_()).add_(d)))
-        x = a[:, 0] - s # Implicit QR
+        x = (-s).add_(a[:, 0]) # Implicit QR
         y = b[:, 0]
         for k in range(0,m):
             c = (torch.pow(x, 2).add_(torch.pow(y, 2))).rsqrt_()
             s = c.clone()
             c.mul_(x)
             s.mul_(-y)
-            w = (c * x).sub_(torch.mul(s, y))
+            w = (torch.mul(c, x)).sub_(torch.mul(s, y))
             d = a[:, k] - a[:, k + 1]
             z = ((torch.mul(d, s)).addcmul_(2, c, b[:, k])).mul_(s)
             a[:, k] -= z
@@ -199,15 +198,15 @@ def batched_tridiag_to_diag(a, b):
             if k > 0:
                 b[:, k - 1] = w
             if k < m - 1:
-                y = torch.mul(-s, b[:, k + 1])
+                y = (-s).mul_(b[:, k + 1])
                 b[:, k + 1].mul_(c)
             c.unsqueeze_(-1)
             s.unsqueeze_(-1)
-            vecs1 = torch.mul(eigenvectors[:, :, k], c) - torch.mul(eigenvectors[:, :, k + 1], s)
-            (eigenvectors[:, :, k + 1].mul_(c)).addcmul_(eigenvectors[:, :, k], s)
-            eigenvectors[:, :, k] = vecs1
+            vecs1 = eigenvectors[:, :, k].clone()
+            (eigenvectors[:, :, k].mul_(c)).addcmul_(-1, eigenvectors[:, :, k + 1], s)
+            (eigenvectors[:, :, k + 1].mul_(c)).addcmul_(vecs1, s)
         if torch.norm(b[:, k]) < err:
             eigenvalues[:, m] = a[:, m]
             m -= 1
-        eigenvalues[:, 0] = a[:, 0]
+    eigenvalues[:, 0] = a[:, 0]
     return eigenvalues, eigenvectors
