@@ -93,7 +93,7 @@ class LazyEvaluatedKernelVariable(LazyVariable):
                 x2 = self.x2
             self._cached_kernel_eval = super(Kernel, self.kernel).__call__(x1, x2, **self.params)
 
-            if not self.is_batch:
+            if not self.is_batch and self._cached_kernel_eval.ndimension() == 3:
                 self._cached_kernel_eval = self._cached_kernel_eval[0]
             if not isinstance(self._cached_kernel_eval, LazyVariable):
                 self._cached_kernel_eval = NonLazyVariable(self._cached_kernel_eval)
