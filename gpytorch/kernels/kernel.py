@@ -80,6 +80,12 @@ class Kernel(Module):
         else:
             return None
 
+    def size(self, x1, x2):
+        if x1.ndimension() == 3:
+            return torch.Size((x1.size(0), x1.size(-2), x2.size(-2)))
+        else:
+            return torch.Size((x1.size(-2), x2.size(-2)))
+
     @abstractmethod
     def forward(self, x1, x2, **params):
         raise NotImplementedError()
