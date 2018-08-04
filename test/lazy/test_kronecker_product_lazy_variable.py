@@ -58,10 +58,10 @@ class TestKroneckerProductLazyVariable(unittest.TestCase):
         self.assertTrue(approx_equal(vec_copy.grad.data, vec.grad.data))
 
     def test_matmul_vec_new(self):
-        ax = torch.randn(3, 3)
-        bx = torch.randn(2, 2)
-        cx = torch.randn(4, 4)
-        rhsx = torch.randn(3 * 2 * 4)
+        ax = torch.randn(4, 2, 3)
+        bx = torch.randn(4, 5, 2)
+        cx = torch.randn(4, 6, 4)
+        rhsx = torch.randn(4, 3 * 2 * 4, 1)
         rhsx = rhsx / torch.norm(rhsx)
         ax_copy = Variable(ax, requires_grad=True)
         bx_copy = bx.clone()
@@ -88,7 +88,6 @@ class TestKroneckerProductLazyVariable(unittest.TestCase):
 
         actual.sum().backward()
         res.sum().backward()
-        print(ax_copy.grad, ax.grad)
         self.assertTrue(approx_equal(ax_copy.grad.data, ax.grad.data))
         self.assertTrue(approx_equal(bx_copy.grad.data, bx.grad.data))
         self.assertTrue(approx_equal(cx_copy.grad.data, cx.grad.data))
