@@ -79,13 +79,16 @@ class KroneckerProductLazyVariable(LazyVariable):
                 left_vecs_i = left_vecs.view(m_left, m_i * m_right, s)
                 if i != len(self.lazy_vars) - 1:
                     left_vecs_i = left_vecs_i.view(m_left, m_i * m_right * s)
-                    left_vecs_i = _matmul(self.lazy_vars[i + 1 :], left_vecs_i)
+                    # ipdb.set_trace()
+                    left_vecs_i = KroneckerProductLazyVariable(*self.lazy_vars[i + 1 :])._t_matmul(left_vecs_i)
+                    # left_vecs_i = _matmul(self.lazy_vars[i + 1 :], left_vecs_i)
                     left_vecs_i = left_vecs_i.view(m_left, m_i * m_right, s)
 
                 left_vecs_i = left_vecs_i.view(m_left, m_i, m_right, s).transpose(0, 1)
                 if i != 0:
                     left_vecs_i = left_vecs_i.transpose(0, 2).contiguous().view(m_right, m_left * m_i * s)
-                    left_vecs_i = _matmul(self.lazy_vars[:i], left_vecs_i)
+                    left_vecs_i = KroneckerProductLazyVariable(*self.lazy_vars[:i])._t_matmul(left_vecs_i)
+                    # left_vecs_i = _matmul(self.lazy_vars[:i], left_vecs_i)
                     left_vecs_i = left_vecs_i.view(m_right, m_left, m_i, s).transpose(0, 2)
 
                 left_vecs_i = left_vecs_i.contiguous().view(m_i, m_left * m_right * s).contiguous()
