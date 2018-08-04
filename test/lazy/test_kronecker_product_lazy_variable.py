@@ -60,10 +60,10 @@ class TestKroneckerProductLazyVariable(unittest.TestCase):
         self.assertTrue(approx_equal(vec_copy.grad.data, vec.grad.data))
 
     def test_matmul_vec_new(self):
-        ax = torch.Tensor([[4, 0, 2], [0, 1, -1], [2, -1, 3]])
+        ax = torch.randn(3, 3)
         print(ax)
-        bx = torch.Tensor([[2, 1], [1, 2]])
-        cx = torch.Tensor([[4, 0, 1, 0], [0, 1, -1, 0], [1, -1, 3, 0], [0, 0, 0, 1]])
+        bx = torch.randn(2, 2)
+        cx = torch.randn(4, 4)
         print(cx)
         rhsx = torch.randn(3 * 2 * 4)
         rhsx = rhsx / torch.norm(rhsx)
