@@ -59,8 +59,13 @@ def _t_matmul(lazy_vars, rhs):
             res = factor.contiguous().view(n_batch, -1, n_cols)
         else:
             res = res.t().contiguous().view(n_cols, lazy_var.size(-2), -1)
-            factor = lazy_var._t_matmul(res).permute(2, 1, 0)
-            res = factor.contiguous().view(-1, n_cols)
+            # factor = lazy_var._t_matmul(res).permute(2, 1, 0)
+            # res = factor.contiguous().view(-1, n_cols)
+            factor = lazy_var._t_matmul(res)
+            if factor.ndimension() == 3:
+                res = factor.permute(2, 1, 0).contiguous().view(-1, n_cols)
+            else:
+                res = factor.permute(1, 0).contiguous().view(-1, n_cols)
     return res
 
 
