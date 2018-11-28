@@ -356,6 +356,13 @@ class AdditiveKernel(Kernel):
             res = res + next_term
         return res
 
+    def integrate_inner(self, x1, x2, min_bounds, max_bounds, **params):
+        res = 0
+        for kern in self.kernels:
+            next_term = kern.integrate_inner(x1, x2, min_bounds, max_bounds, **params)
+            res = res + next_term
+        return res
+
 
 class ProductKernel(Kernel):
     """
@@ -377,5 +384,12 @@ class ProductKernel(Kernel):
             next_term = kern(x1, x2, **params)
             if isinstance(next_term, LazyEvaluatedKernelTensor):
                 next_term = next_term.evaluate_kernel()
+            res = res * next_term
+        return res
+
+    def integrate_inner(self, x1, x2, min_bounds, max_bounds, **params):
+        res = 1
+        for kern in self.kernels:
+            next_term = kern.integrate_inner(x1, x2, min_bounds, max_bounds, **params)
             res = res * next_term
         return res
