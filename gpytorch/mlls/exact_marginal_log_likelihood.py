@@ -25,6 +25,7 @@ class ExactMarginalLogLikelihood(MarginalLogLikelihood):
 
         # Get the log prob of the marginal distribution
         output = self.likelihood(output, *params)
+        output = torch.distributions.MultivariateNormal(output.mean, covariance_matrix=output.covariance_matrix)
         res = output.log_prob(target)
 
         # Add terms for SGPR / when inducing points are learned
