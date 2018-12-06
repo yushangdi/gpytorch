@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import torch
+import math
 
 
 def pivoted_cholesky(matrix, max_iter, error_tol=1e-3):
@@ -94,13 +95,21 @@ def woodbury_factor(low_rank_mat, shift):
 
     to be used in solves with (V'V + shift I) via the Woodbury formula
     """
+
     k = low_rank_mat.size(-2)
     shifted_mat = low_rank_mat.matmul(low_rank_mat.transpose(-1, -2) / shift.unsqueeze(-1))
 
     shifted_mat = shifted_mat + torch.eye(k, dtype=shifted_mat.dtype, device=shifted_mat.device)
 
-    R = torch.potrs(low_rank_mat, torch.cholesky(shifted_mat, upper=True))
-    return R
+    # Hack for half precision - switch over to float (because potrs is not supported for half)
+    if low_rank_mat.dtype == torch.float16:
+        chol = torch.cholesky(shifted_mat.float())
+        R = torch.potrs(low_rank_mat.float(), chol, upper=False)
+        return R.type_as(low_rank_mat)
+    else:
+        chol = torch.cholesky(shifted_mat)
+        R = torch.potrs(low_rank_mat, chol, upper=False)
+        return R
 
 
 def woodbury_solve(vector, low_rank_mat, woodbury_factor, shift):

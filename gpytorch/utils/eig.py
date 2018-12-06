@@ -13,6 +13,9 @@ def batch_symeig(mat):
     # Smaller matrices are faster on the CPU than the GPU
     if mat.size(-1) <= 32:
         mat = mat.cpu()
+        # Symeig doesn't work for half tensors, so we're catching that here
+        if mat.dtype == torch.float16:
+            mat = mat.float()
 
     mat = mat.view(-1, *matrix_shape)
     eigenvectors = torch.empty(batch_shape.numel(), *matrix_shape, dtype=mat.dtype, device=mat.device)

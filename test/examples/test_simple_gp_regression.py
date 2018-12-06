@@ -43,10 +43,12 @@ class TestSimpleGPRegression(unittest.TestCase):
     def _get_data(self, cuda=False):
         device = torch.device("cuda") if cuda else torch.device("cpu")
         # Simple training data: let's try to learn a sine function
-        train_x = torch.linspace(0, 1, 11, device=device)
-        train_y = torch.sin(train_x * (2 * pi))
+        train_x = torch.linspace(0, 1, 1000, device=device)
+        train_y = torch.sin(train_x * (2 * pi)) + 1
+        train_y.add_(torch.randn_like(train_y).mul_(0.05))
         test_x = torch.linspace(0, 1, 51, device=device)
-        test_y = torch.sin(test_x * (2 * pi))
+        test_y = torch.sin(test_x * (2 * pi)) + 1
+        test_y.add_(torch.randn_like(test_y).mul_(0.05))
         return train_x, test_x, train_y, test_y
 
     def test_prior(self, cuda=False):
@@ -117,6 +119,10 @@ class TestSimpleGPRegression(unittest.TestCase):
 
     def test_posterior_latent_gp_and_likelihood_with_optimization(self, cuda=False):
         train_x, test_x, train_y, test_y = self._get_data(cuda=cuda)
+        train_x = train_x.half()
+        train_y = train_y.half()
+        test_x = test_x.half()
+        test_y = test_y.half()
         # We're manually going to set the hyperparameters to something they shouldn't be
         likelihood = GaussianLikelihood(noise_prior=SmoothedBoxPrior(exp(-3), exp(3), sigma=0.1))
         gp_model = ExactGPModel(train_x, train_y, likelihood)
@@ -128,20 +134,25 @@ class TestSimpleGPRegression(unittest.TestCase):
         if cuda:
             gp_model.cuda()
             likelihood.cuda()
+        gp_model = gp_model.half()
+        likelihood = likelihood.half()
 
         # Find optimal model hyperparameters
         gp_model.train()
         likelihood.train()
-        optimizer = optim.Adam(list(gp_model.parameters()) + list(likelihood.parameters()), lr=0.15)
+        optimizer = optim.Adam(list(gp_model.parameters()) + list(likelihood.parameters()), lr=0.1, eps=1e-4)
         optimizer.n_iter = 0
-        for _ in range(50):
-            optimizer.zero_grad()
-            with gpytorch.settings.debug(False):
-                output = gp_model(train_x)
-            loss = -mll(output, train_y)
-            loss.backward()
-            optimizer.n_iter += 1
-            optimizer.step()
+        import time
+        start = time.time()
+        with gpytorch.settings.skip_logdet_forward(True), gpytorch.settings.max_preconditioner_size(0):
+            for i in range(50):
+                optimizer.zero_grad()
+                with gpytorch.settings.debug(False):
+                    output = gp_model(train_x)
+                loss = -mll(output, train_y)
+                loss.backward()
+                optimizer.n_iter += 1
+                optimizer.step()
 
         for param in gp_model.parameters():
             self.assertTrue(param.grad is not None)
@@ -149,7 +160,7 @@ class TestSimpleGPRegression(unittest.TestCase):
         for param in likelihood.parameters():
             self.assertTrue(param.grad is not None)
             self.assertGreater(param.grad.norm().item(), 0)
-        optimizer.step()
+        print(f'Total time: {time.time() - start}')
 
         # Test the model
         gp_model.eval()

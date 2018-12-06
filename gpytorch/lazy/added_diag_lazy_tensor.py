@@ -76,7 +76,12 @@ class AddedDiagLazyTensor(SumLazyTensor):
                 ld_one = (NonLazyTensor(torch.cholesky(lr_flipped, upper=True)).diag().log().sum(-1)) * 2
                 ld_two = self._diag_tensor.diag().log().sum(-1)
             else:
-                ld_one = lr_flipped.cholesky(upper=True).diag().log().sum() * 2
+                # Hack for half precision - switch over to float (because potrs is not supported for half)
+                if lr_flipped.dtype == torch.float16:
+                    ld_one = lr_flipped.float().cholesky(upper=True).diag().log().sum() * 2
+                    ld_one = ld_one.type_as(lr_flipped)
+                else:
+                    ld_one = lr_flipped.cholesky(upper=True).diag().log().sum() * 2
                 ld_two = self._diag_tensor.diag().log().sum().item()
             self._precond_log_det_cache = ld_one + ld_two
 

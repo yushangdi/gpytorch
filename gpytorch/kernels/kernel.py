@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from abc import abstractmethod
+import math
 import torch
 from torch.nn import ModuleList
 from ..lazy import LazyEvaluatedKernelTensor, ZeroLazyTensor
@@ -127,7 +128,7 @@ class Kernel(Module):
     @property
     def lengthscale(self):
         if self.has_lengthscale:
-            return self._param_transform(self.raw_lengthscale).clamp(self.eps, 1e5)
+            return self._param_transform(self.raw_lengthscale).clamp(self.eps, math.inf)
         else:
             return None
 
