@@ -24,6 +24,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
     def forward(self, x):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
+        print(covar_x.evaluate())
         return MultivariateNormal(mean_x, covar_x)
 
 
@@ -45,24 +46,19 @@ class TestSimpleGPRegression(unittest.TestCase):
         # Simple training data: let's try to learn a sine function
         train_x = torch.linspace(0, 1, 1000, device=device)
         train_y = torch.sin(train_x * (2 * pi)) + 1
-        train_y.add_(torch.randn_like(train_y).mul_(0.05))
+        train_y.add_(torch.randn_like(train_y).mul_(0.1))
         test_x = torch.linspace(0, 1, 51, device=device)
         test_y = torch.sin(test_x * (2 * pi)) + 1
-        test_y.add_(torch.randn_like(test_y).mul_(0.05))
+        test_y.add_(torch.randn_like(test_y).mul_(0.1))
         return train_x, test_x, train_y, test_y
 
     def test_prior(self, cuda=False):
         train_x, test_x, train_y, test_y = self._get_data(cuda=cuda)
         # We're manually going to set the hyperparameters to be ridiculous
-        likelihood = GaussianLikelihood(noise_prior=SmoothedBoxPrior(exp(-3), exp(3), sigma=0.1))
+        likelihood = GaussianLikelihood()
         gp_model = ExactGPModel(None, None, likelihood)
         # Update lengthscale prior to accommodate extreme parameters
-        gp_model.covar_module.base_kernel.register_prior(
-            "log_lengthscale_prior", SmoothedBoxPrior(exp(-10), exp(10), sigma=0.5), "raw_lengthscale"
-        )
         gp_model.mean_module.initialize(constant=1.5)
-        gp_model.covar_module.base_kernel.initialize(log_lengthscale=0)
-        likelihood.initialize(log_noise=0)
 
         if cuda:
             gp_model.cuda()
@@ -124,13 +120,11 @@ class TestSimpleGPRegression(unittest.TestCase):
         test_x = test_x.half()
         test_y = test_y.half()
         # We're manually going to set the hyperparameters to something they shouldn't be
-        likelihood = GaussianLikelihood(noise_prior=SmoothedBoxPrior(exp(-3), exp(3), sigma=0.1))
+        likelihood = GaussianLikelihood()
         gp_model = ExactGPModel(train_x, train_y, likelihood)
         mll = gpytorch.ExactMarginalLogLikelihood(likelihood, gp_model)
-        gp_model.covar_module.base_kernel.initialize(log_lengthscale=1)
         gp_model.mean_module.initialize(constant=0)
-        likelihood.initialize(log_noise=1)
-
+        gp_model.covar_module.base_kernel.initialize(lengthscale=0.01)
         if cuda:
             gp_model.cuda()
             likelihood.cuda()
@@ -140,7 +134,7 @@ class TestSimpleGPRegression(unittest.TestCase):
         # Find optimal model hyperparameters
         gp_model.train()
         likelihood.train()
-        optimizer = optim.Adam(list(gp_model.parameters()) + list(likelihood.parameters()), lr=0.1, eps=1e-4)
+        optimizer = optim.Adam(list(gp_model.parameters()) + list(likelihood.parameters()), lr=0.05, eps=1e-4)
         optimizer.n_iter = 0
         import time
         start = time.time()
@@ -152,7 +146,11 @@ class TestSimpleGPRegression(unittest.TestCase):
                 loss = -mll(output, train_y)
                 loss.backward()
                 optimizer.n_iter += 1
+                for name, param in gp_model.named_parameters():
+                    print(f'1 {name} {param.item()} {param.grad.item()}')
                 optimizer.step()
+                for name, param in gp_model.named_parameters():
+                    print(f'2 {name} {param.item()} {param.grad.item()}')
 
         for param in gp_model.parameters():
             self.assertTrue(param.grad is not None)
@@ -161,12 +159,14 @@ class TestSimpleGPRegression(unittest.TestCase):
             self.assertTrue(param.grad is not None)
             self.assertGreater(param.grad.norm().item(), 0)
         print(f'Total time: {time.time() - start}')
-
-        # Test the model
-        gp_model.eval()
-        likelihood.eval()
-        test_function_predictions = likelihood(gp_model(test_x))
-        mean_abs_error = torch.mean(torch.abs(test_y - test_function_predictions.mean))
+        
+        with gpytorch.settings.max_preconditioner_size(0):
+            # Test the model
+            gp_model.eval()
+            likelihood.eval()
+            test_function_predictions = likelihood(gp_model(test_x))
+            print(test_function_predictions.mean)
+            mean_abs_error = torch.mean(torch.abs(test_y - test_function_predictions.mean))
 
         self.assertLess(mean_abs_error.item(), 0.05)
 
