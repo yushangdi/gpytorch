@@ -46,10 +46,10 @@ class TestSimpleGPRegression(unittest.TestCase):
         # Simple training data: let's try to learn a sine function
         train_x = torch.linspace(0, 1, 1000, device=device)
         train_y = torch.sin(train_x * (2 * pi)) + 1
-        train_y.add_(torch.randn_like(train_y).mul_(0.1))
+        train_y.add_(torch.randn_like(train_y).mul_(0.05))
         test_x = torch.linspace(0, 1, 51, device=device)
         test_y = torch.sin(test_x * (2 * pi)) + 1
-        test_y.add_(torch.randn_like(test_y).mul_(0.1))
+        test_y.add_(torch.randn_like(test_y).mul_(0.05))
         return train_x, test_x, train_y, test_y
 
     def test_prior(self, cuda=False):
@@ -138,7 +138,7 @@ class TestSimpleGPRegression(unittest.TestCase):
         optimizer.n_iter = 0
         import time
         start = time.time()
-        with gpytorch.settings.skip_logdet_forward(True), gpytorch.settings.max_preconditioner_size(0):
+        with gpytorch.settings.skip_logdet_forward(True), gpytorch.settings.max_preconditioner_size(0), gpytorch.settings.max_cg_iterations(50):
             for i in range(50):
                 optimizer.zero_grad()
                 with gpytorch.settings.debug(False):
@@ -160,7 +160,7 @@ class TestSimpleGPRegression(unittest.TestCase):
             self.assertGreater(param.grad.norm().item(), 0)
         print(f'Total time: {time.time() - start}')
         
-        with gpytorch.settings.max_preconditioner_size(0):
+        with gpytorch.settings.max_preconditioner_size(0), gpytorch.settings.max_cg_iterations(60):
             # Test the model
             gp_model.eval()
             likelihood.eval()
